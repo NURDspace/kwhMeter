@@ -53,12 +53,12 @@ void setup() {
 
 void loop() {
     unsigned long now = millis();
-    // Only send values at a maximum frequency or woken up from sleep
+    // Only send values at a the configured frequency or when woken up from sleep
     bool sendTime = now - lastSend > SEND_FREQUENCY;
     if (sendTime) {
         if (watt != oldWatt) {
-            // Check that we dont get unresonable large watt value.
-            // could hapen when long wraps or false interrupt triggered
+            // Check that we dont get unreasonable large watt value.
+            // could happen when long wraps or false interrupt triggered
             if (watt<((unsigned long)MAX_WATT)) {
                 snprintf (msg, 50, "%ld", watt);
                 client.publish("powermeter/watt", msg);
@@ -68,7 +68,7 @@ void loop() {
             Serial.println(watt);
         }
 
-        // Pulse cout has changed
+        // Pulse count has changed
         if (pulseCount != oldPulseCount) {
             Serial.print("P:");
             Serial.println(pulseCount);
