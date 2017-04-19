@@ -1,10 +1,5 @@
-#define PULSE_PIN 13 //D7
+#include <config.h>
 #define MS_PER_HOUR    3.6e6
-#define PULSE_FACTOR 100 
-#define MAX_WATT 3400
-
-#define MQTT_SERVER "10.38.18.11"
-#define MQTT_PORT 1883
 
 #include <ESP8266WiFi.h>          //ESP8266 Core WiFi Library (you most likely already have this in your sketch)
 #include <ESP8266mDNS.h>
@@ -47,8 +42,8 @@ void setup() {
     pinMode(PULSE_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(PULSE_PIN), kwhChange, FALLING);
 
-	client.setServer(MQTT_SERVER, MQTT_PORT);
-	client.setCallback(mqttCallback);
+    client.setServer(MQTT_SERVER, MQTT_PORT);
+    client.setCallback(mqttCallback);
 }
 
 void loop() {
@@ -61,7 +56,7 @@ void loop() {
             // could hapen when long wraps or false interrupt triggered
             if (watt<((unsigned long)MAX_WATT)) {
                 snprintf (msg, 50, "%ld", watt);
-                client.publish("powermeter/watt", msg);
+                client.publish(MQTT_TOPIC_WATT, msg);
             }
             oldWatt = watt;
             Serial.print("W:");
@@ -73,12 +68,12 @@ void loop() {
             Serial.print("P:");
             Serial.println(pulseCount);
             snprintf (msg, 50, "%ld", pulseCount);
-            client.publish("powermeter/pulsecount", msg, true);
+            client.publish(MQTT_TOPIC_PULSE, msg, true);
             double kwh = ((double)pulseCount/((double)PULSE_FACTOR));
             oldPulseCount = pulseCount;
             if (kwh != oldKwh) {
                 snprintf (msg, 50, "%s", String(kwh,3).c_str());
-                client.publish("powermeter/kwh", msg);
+                client.publish(MQTT_TOPIC_KWH, msg);
                 oldKwh = kwh;
                 Serial.print("K:");
                 Serial.println(msg);
@@ -91,11 +86,11 @@ void loop() {
     ArduinoOTA.handle();
 
     //MQTT
-	if (!client.connected()) {
-		mqttReconnect();
-	}
-	client.loop();
-	yield();
+    if (!client.connected()) {
+        mqttReconnect();
+    }
+    client.loop();
+    yield();
 }
 
 void kwhChange() {
@@ -116,7 +111,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     for (int i=0;i<length;i++) {
         data[i] = (char)payload[i];
     }
-    if ( strcmp(topic,"powermeter/pulsecount")==0 )
+    if ( strcmp(topic,MQTT_TOPIC_PULSE)==0 )
     {
         unsigned long receivedPulseCount = atoi(data);
         if (pulseCount == 0)
@@ -131,7 +126,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
             if (reconnected)
             { 
                 snprintf (msg, 50, "%ld", pulseCount);
-                client.publish("powermeter/pulsecount", msg, true);
+                client.publish(MQTT_TOPIC_PULSE, msg, true);
                 reconnected = false;
             }
         }
@@ -143,14 +138,14 @@ void mqttReconnect() {
     String clientId = "ESP8266Client-";
     clientId += String(random(0xffff), HEX);
     if (client.connect(clientId.c_str())) {
-      Serial.println("connected");
-      client.subscribe("powermeter/pulsecount");
-      reconnected = true;
+        Serial.println("connected");
+        client.subscribe(MQTT_TOPIC_PULSE);
+        reconnected = true;
     } else {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
+        Serial.print("failed, rc=");
+        Serial.print(client.state());
+        Serial.println(" try again in 5 seconds");
+        // Wait 5 seconds before retrying
+        delay(5000);
     }
 }
