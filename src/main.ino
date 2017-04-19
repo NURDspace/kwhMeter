@@ -5,7 +5,6 @@
 
 #define MQTT_SERVER "10.38.18.11"
 #define MQTT_PORT 1883
-#define MQTT_DEVICE_TOPIC "/dev/kwhmeter"
 
 #include <ESP8266WiFi.h>          //ESP8266 Core WiFi Library (you most likely already have this in your sketch)
 #include <ESP8266mDNS.h>
@@ -22,7 +21,7 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 
 // Power meter stuff
-unsigned long SEND_FREQUENCY = 20000;
+unsigned long SEND_FREQUENCY = 10000;
 unsigned long lastSend;
 unsigned long watt = 0;
 unsigned long oldWatt = 0;
@@ -30,6 +29,7 @@ unsigned long pulseCount = 0;
 unsigned long oldPulseCount = 0;
 unsigned long previous = 0;
 unsigned long oldKwh = 0;
+bool reconnected = false;
 char msg[50]; //mqtt message buffer
 
 void setup() {
@@ -56,7 +56,6 @@ void loop() {
     // Only send values at a maximum frequency or woken up from sleep
     bool sendTime = now - lastSend > SEND_FREQUENCY;
     if (sendTime) {
-
         if (watt != oldWatt) {
             // Check that we dont get unresonable large watt value.
             // could hapen when long wraps or false interrupt triggered
@@ -65,10 +64,14 @@ void loop() {
                 client.publish("powermeter/watt", msg);
             }
             oldWatt = watt;
+            Serial.print("W:");
+            Serial.println(watt);
         }
 
         // Pulse cout has changed
         if (pulseCount != oldPulseCount) {
+            Serial.print("P:");
+            Serial.println(pulseCount);
             snprintf (msg, 50, "%ld", pulseCount);
             client.publish("powermeter/pulsecount", msg, true);
             double kwh = ((double)pulseCount/((double)PULSE_FACTOR));
@@ -77,14 +80,17 @@ void loop() {
                 snprintf (msg, 50, "%s", String(kwh,3).c_str());
                 client.publish("powermeter/kwh", msg);
                 oldKwh = kwh;
+                Serial.print("K:");
+                Serial.println(msg);
             }
         }
         lastSend = now;
     }
 
-
-
+    //Handle OTA
     ArduinoOTA.handle();
+
+    //MQTT
 	if (!client.connected()) {
 		mqttReconnect();
 	}
@@ -103,32 +109,31 @@ void kwhChange() {
 
     watt = 1000 * ((double) MS_PER_HOUR / time) / (unsigned long) PULSE_FACTOR;
     pulseCount++;
-    Serial.println(watt);
 }
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
-    Serial.print("Message arrived [");
-    Serial.print(topic);
-    Serial.print("] ");
     char data[length];
     for (int i=0;i<length;i++) {
-        Serial.print((char)payload[i]);
         data[i] = (char)payload[i];
     }
-    Serial.println();
     if ( strcmp(topic,"powermeter/pulsecount")==0 )
     {
-        Serial.print("Recieved count: ");
         unsigned long receivedPulseCount = atoi(data);
-        Serial.println(receivedPulseCount);
         if (pulseCount == 0)
             pulseCount = receivedPulseCount;
-        if (pulseCount < receivedPulseCount)
-            pulseCount = pulseCount + receivedPulseCount;
-        if (pulseCount > receivedPulseCount)
+        else if (receivedPulseCount > pulseCount)
         {
-            snprintf (msg, 50, "%ld", pulseCount);
-            client.publish("powermeter/pulsecount", msg, true);
+            Serial.println("Resetting pulse count");
+            pulseCount = receivedPulseCount;
+        }
+        else
+        {
+            if (reconnected)
+            { 
+                snprintf (msg, 50, "%ld", pulseCount);
+                client.publish("powermeter/pulsecount", msg, true);
+                reconnected = false;
+            }
         }
     }
 }
@@ -140,6 +145,7 @@ void mqttReconnect() {
     if (client.connect(clientId.c_str())) {
       Serial.println("connected");
       client.subscribe("powermeter/pulsecount");
+      reconnected = true;
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
