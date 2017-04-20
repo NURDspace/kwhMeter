@@ -31,7 +31,7 @@ void setup() {
     Serial.begin(115200);
     Serial.println("Booting");
 
-    wifiManager.autoConnect("AutoConnectAP");
+    wifiManager.autoConnect("PulseMeter",CONFIG_PASSWORD);
 
     ArduinoOTA.begin();
     Serial.println("Ready");

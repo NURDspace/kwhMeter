@@ -1,3 +1,5 @@
+#define CONFIG_PASSWORD "passw0rd123"
+
 #define PULSE_PIN 13 //D7
 #define PULSE_FACTOR 100 
 #define MAX_WATT 3400
