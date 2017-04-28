@@ -56,7 +56,7 @@ void loop() {
             // could happen when long wraps or false interrupt triggered
             if (watt<((unsigned long)MAX_WATT)) {
                 snprintf (msg, 50, "%ld", watt);
-                client.publish(MQTT_TOPIC_WATT, msg);
+                client.publish(MQTT_TOPIC_WATT, msg, true);
             }
             oldWatt = watt;
             Serial.print("W:");
@@ -73,7 +73,7 @@ void loop() {
             oldPulseCount = pulseCount;
             if (kwh != oldKwh) {
                 snprintf (msg, 50, "%s", String(kwh,3).c_str());
-                client.publish(MQTT_TOPIC_KWH, msg);
+                client.publish(MQTT_TOPIC_KWH, msg, true);
                 oldKwh = kwh;
                 Serial.print("K:");
                 Serial.println(msg);
